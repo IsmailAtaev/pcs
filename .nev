@@ -1,0 +1,11 @@
+NODE_ENV=test
+
+PORT=4000
+HOST=127.0.0.1
+
+DB_NAME=promo_code_systems
+DB_USERNAME=postgres
+DB_PASSWORD=123456789
+DB_ROOT_PASSWORD=123456789
+DB_PORT=5460
+DATABASE_URL='postgresql://postgres:123456789@localhost:5460/promo_code_systems'
