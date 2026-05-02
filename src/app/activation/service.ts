@@ -2,6 +2,7 @@ import { ActivationSchema as Schema } from '@src/api/schema/activation';
 import { err } from '@src/utils';
 import { activationRepo as repo } from './repo';
 import { promocodeRepo } from '../promocode/repo';
+import { db } from '@infra/db/db';
 
 const getActivations = async (id: string) => {
   const one = await promocodeRepo.getOne(id);
@@ -10,28 +11,49 @@ const getActivations = async (id: string) => {
 };
 
 const activate = async (id: string, p: Schema['Activate']) => {
-  const promocode = await promocodeRepo.getOne(id);
-  if (!promocode) throw new err.NotFound();
+  return await db.transaction().execute(async (trx) => {
+    const promocode = await trx.selectFrom('promocodes')
+      .where('id', '=', id)
+      .forUpdate()
+      .selectAll()
+      .executeTakeFirst();
 
-  if (new Date() > new Date(promocode.expiresAt)) {
-    throw err.BadRequest('Promocode is expired');
-  }
+    if (!promocode) throw new err.NotFound();
 
-  if (promocode.usedCount >= promocode.maxUses) {
-    throw err.BadRequest('Promocode usage limit reached');
-  }
+    if (new Date() > new Date(promocode.expiresAt)) {
+      throw err.BadRequest('Promocode is expired');
+    }
 
-  const existingActivation = await repo.findActivation(id, p.email);
-  if (existingActivation) {
-    throw err.BadRequest('This email has already activated this promocode');
-  }
+    if (promocode.usedCount >= promocode.maxUses) {
+      throw err.BadRequest('Promocode usage limit reached');
+    }
 
-  const activation = await repo.createActivation(id, p.email);
-  if (!activation) throw err.BadRequest('Activation failed');
+    const existingActivation = await trx.selectFrom('activations')
+      .where('promocodeId', '=', id)
+      .where('email', '=', p.email)
+      .selectAll()
+      .executeTakeFirst();
 
-  await promocodeRepo.incrementUsedCount(id);
+    if (existingActivation) {
+      throw err.BadRequest('This email has already activated this promocode');
+    }
 
-  return activation;
+    const activation = await trx.insertInto('activations')
+      .values({ promocodeId: id, email: p.email })
+      .returningAll()
+      .executeTakeFirst();
+
+    if (!activation) throw err.BadRequest('Activation failed');
+
+    await trx.updateTable('promocodes')
+      .set((eb) => ({
+        usedCount: eb('usedCount', '+', 1)
+      }))
+      .where('id', '=', id)
+      .execute();
+
+    return activation;
+  });
 };
 
 export const activationService = {
