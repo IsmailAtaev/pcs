@@ -1,5 +1,5 @@
 import { getEnv } from '@infra/env/service';
-import { Kysely, PostgresDialect } from 'kysely';
+import { Kysely, PostgresDialect, CamelCasePlugin } from 'kysely';
 import { Pool } from 'pg';
 import { DB as Database } from './types';
 
@@ -11,4 +11,7 @@ const dialect = new PostgresDialect({
 
 export type DB = Database;
 
-export const db = new Kysely<DB>({ dialect });
+export const db = new Kysely<DB>({
+  dialect,
+  plugins: [new CamelCasePlugin()],
+});

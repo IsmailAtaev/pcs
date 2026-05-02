@@ -9,6 +9,9 @@ import { envCheck } from './infra/env';
 import { getEnv } from './infra/env/service';
 import { openApi, errorUtil } from './utils';
 
+import fastifySwagger from '@fastify/swagger';
+import fastifySwaggerUi from '@fastify/swagger-ui';
+
 const app = Fastify({ logger: { level: 'debug' } });
 const port = getEnv('PORT');
 const host = getEnv('HOST');
@@ -23,6 +26,17 @@ const start = async () => {
     await app.register(fastifyHelmet);
     await app.register(sensible);
 
+    await app.register(fastifySwagger, {
+      mode: 'static',
+      specification: {
+        document: openApi.document as any,
+      },
+    });
+
+    await app.register(fastifySwaggerUi, {
+      routePrefix: '/docs',
+    });
+
     app.get('/api/openapi', async () => openApi.document);
 
     s.registerRouter(contract, router, app, {
@@ -32,6 +46,7 @@ const start = async () => {
 
     await app.listen({ port, host: getEnv('HOST') });
     console.log(`http://${host}:${port}`);
+    console.log(`Swagger UI: http://${host}:${port}/docs`);
   } catch (err) {
     console.log(err);
     process.exit(1);
